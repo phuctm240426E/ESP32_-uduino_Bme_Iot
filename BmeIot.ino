@@ -20,7 +20,7 @@ constexpr char WIFI_PASSWORD[] = "dong1958";
 
 // See https://thingsboard.io/docs/getting-started-guides/helloworld/
 // to understand how to obtain an access token
-constexpr char TOKEN[] = "I5hqfWK0FXG0373PC5s1";
+constexpr char TOKEN[] = "xXaZIEXbmToHDbF6aGWx";
 
 // Thingsboard we want to establish a connection too
 constexpr char THINGSBOARD_SERVER[] = "demo.thingsboard.io";
