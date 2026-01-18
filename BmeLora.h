@@ -7,11 +7,11 @@
 #include <cstdint>
 
 //define the pins used by the transceiver module
-#define SS 5
-#define RST 14
+#define SS 4
+#define RST 5
 #define DIO0 2
 
-#define LORA_DATA_PACKET_SIZE 9
+#define LORA_DATA_PACKET_SIZE 6
 
 typedef struct __attribute__((packed)) {
     uint8_t deviceId;   
@@ -23,6 +23,10 @@ typedef struct __attribute__((packed)) {
 
 void initBmeLora(); 
 
-uint8_t* getLoraPacket();
+void setLoraPacket(lora_data_packet_t* data);
+
+bool getLoraPacket(lora_data_packet_t* data);
+
+void setAndSendLoraPacket();
 
 #endif

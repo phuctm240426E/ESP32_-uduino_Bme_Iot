@@ -21,25 +21,42 @@ void initBmeLora() {
   DEBUG("LoRa Initializing OK!");
 }
 
-uint8_t* getLoraPacket() {
-  // try to parse packet
-  uint8_t data[LORA_DATA_PACKET_SIZE] = {0};
-  String LoRaData;
+void setLoraPacket(lora_data_packet_t* data) {
+  data->deviceId = 1;
+  data->spO2 = 2;
+  data->heartRate = 3;
+  data->bloodPressure.diastolic = 5;
+  data->bloodPressure.systolic = 4;
+  data->CRC = 6;
+}
+
+bool getLoraPacket(lora_data_packet_t* data) {
+  uint8_t buffer[50];
+  uint8_t cnt = 0;
   int packetSize = LoRa.parsePacket();
+
   if (packetSize) {
-    // received a packet
     DEBUG("Received packet '");
 
-    // read packet
     while (LoRa.available()) {
-      LoRaData = LoRa.readString();
-      DEBUG(LoRaData); 
+      buffer[cnt] = LoRa.read();
+      cnt++;
     }
-
-    for(int i = 0; i < LORA_DATA_PACKET_SIZE; i++) {
-      data[i] = LoRaData[i];
-    }
-    data[LORA_DATA_PACKET_SIZE] = 0;
+    memcpy(data, buffer, LORA_DATA_PACKET_SIZE);
+    return 1;
   }
-  return data;
+  
+  return 0;
+}
+
+void setAndSendLoraPacket() {
+  lora_data_packet_t data;
+  char dataSend[LORA_DATA_PACKET_SIZE];
+  
+  setLoraPacket(&data);
+  memcpy(dataSend, &data, LORA_DATA_PACKET_SIZE);
+  
+  LoRa.beginPacket();
+  LoRa.print(dataSend);
+  LoRa.endPacket();
 }

@@ -4,8 +4,8 @@
 #include <cstdint>
 
 typedef struct __attribute__((packed)){
-    uint16_t systolic;   // mmHg
-    uint16_t diastolic;  // mmHg
+    uint8_t systolic;   // mmHg
+    uint8_t diastolic;  // mmHg
 } blood_pressure_t;
 
 blood_pressure_t getBloodPressure();

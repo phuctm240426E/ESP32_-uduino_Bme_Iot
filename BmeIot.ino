@@ -217,6 +217,7 @@ void setup() {
   }
   delay(1000);
   InitWiFi();
+  initBmeLora(); 
 }
 
 void loop() {
@@ -305,6 +306,29 @@ void loop() {
     tb.sendAttributeData("localIp", WiFi.localIP().toString().c_str());
     tb.sendAttributeData("ssid", WiFi.SSID().c_str());
   }
-
+  
+  lora_data_packet_t lora_data;
+  bool hasData = getLoraPacket(&lora_data);
+  if(hasData) {
+    String key;
+    //lora_data_packet_t lora_data;
+    //memcpy(&lora_data, data, LORA_DATA_PACKET_SIZE);
+    Serial.println("Receive packet: ");
+    Serial.println(lora_data.deviceId);
+    Serial.println(lora_data.spO2);
+    key = "SpO2_" + String(lora_data.deviceId);
+    tb.sendTelemetryData(key.c_str(), lora_data.spO2);
+    Serial.println(lora_data.heartRate);
+    key = "HeartRate_" + String(lora_data.deviceId);
+    tb.sendTelemetryData(key.c_str(), lora_data.heartRate);
+    Serial.println(lora_data.bloodPressure.systolic);
+    key = "Systolic_" + String(lora_data.deviceId);
+    tb.sendTelemetryData(key.c_str(), lora_data.bloodPressure.systolic);
+    Serial.println(lora_data.bloodPressure.diastolic);
+    key = "Diastolic_" + String(lora_data.deviceId);
+    tb.sendTelemetryData(key.c_str(), lora_data.bloodPressure.diastolic);
+    Serial.println(lora_data.CRC);
+  }
+  
   tb.loop();
 }
