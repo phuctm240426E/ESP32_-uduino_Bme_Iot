@@ -1,12 +1,10 @@
 #include "BmeLora.h"
 #include "Debug.h"
 
-extern Adafruit_SSD1306 display;
-
 void initBmeLora() {
   DEBUG("LoRa Receiver");
 
-#if defined(ESP32_S3) && (ESP32_S3 == 1)
+#if defined(ESP32) && (ESP32 == 0)
   SPI.begin(L_SCK, L_MISO, L_MOSI, SS);
 #endif
 
@@ -20,21 +18,23 @@ void initBmeLora() {
     DEBUG(".");
     delay(500);
   }
-  display.println("LoRa: Ready");
-  display.display();
    // Change sync word (0xF3) to match the receiver
   // The sync word assures you don't get LoRa messages from other LoRa transceivers
   // ranges from 0-0xFF
-  LoRa.setSyncWord(0xF3);
+  LoRa.setSpreadingFactor(9);
+  LoRa.setSignalBandwidth(250E3);
+  LoRa.setCodingRate4(6);
+  LoRa.enableCrc();                                                                                                                                                                                                                 
+  LoRa.setSyncWord(0x2A);
+  LoRa.setGain(0);          // AGC ON
   DEBUG("LoRa Initializing OK!");
 }
 
 void setLoraPacket(lora_data_packet_t* data) {
   data->deviceId = 1;
-  data->spO2 = 2;
-  data->heartRate = 3;
-  data->bloodPressure.diastolic = 5;
-  data->bloodPressure.systolic = 4;
+  data->spO2 = getSpO2();
+  data->heartRate = getHeartRate();
+  data->bloodPressure = getBloodPressure();
   data->CRC = 6;
 }
 
@@ -44,7 +44,7 @@ bool getLoraPacket(lora_data_packet_t* data) {
   int packetSize = LoRa.parsePacket();
 
   if (packetSize) {
-    DEBUG("Received packet '");
+    DEBUG("Received packet");
 
     while (LoRa.available()) {
       buffer[cnt] = LoRa.read();
@@ -53,7 +53,7 @@ bool getLoraPacket(lora_data_packet_t* data) {
     memcpy(data, buffer, LORA_DATA_PACKET_SIZE);
     return 1;
   }
-  
+
   return 0;
 }
 

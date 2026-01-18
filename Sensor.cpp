@@ -9,7 +9,7 @@ blood_pressure_t getBloodPressure() {
 }
 
 uint8_t getSpO2() {
-  return random(10, 200);
+  return random(10, 100);
 }
 
 uint8_t getHeartRate() {

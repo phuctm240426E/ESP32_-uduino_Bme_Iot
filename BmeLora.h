@@ -9,19 +9,25 @@
 
 //define the pins used by the transceiver module
 #define ESP32_S3 1
+#define ESP32_C3 0
+#define ESP32    0
 
-#if defined(ESP32_S3) && (ESP32_S3 == 2)
+#if defined(ESP32) && (ESP32 == 1)
   #define SS 4
   #define RST 5
   #define DIO0 2
-#elseif defined(ESP32_S3) && (ESP32_S3 == 1)
+#endif
+
+#if defined(ESP32_C3) && (ESP32_C3 == 1) //small
   #define L_SCK 4
   #define L_MISO 5
   #define L_MOSI 3
   #define SS 2
   #define RST 1
   #define DIO0 0
-#else // 0
+#endif
+
+#if defined(ESP32_S3) && (ESP32_S3 == 1)
   #define L_SCK   5
   #define L_MISO  6
   #define L_MOSI  7
