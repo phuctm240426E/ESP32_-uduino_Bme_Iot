@@ -5,12 +5,8 @@
 #include <LoRa.h>
 #include "Sensor.h"
 #include <cstdint>
+#include "BmeBoard.h"
 #include "BmeLcd.h"
-
-//define the pins used by the transceiver module
-#define ESP32_S3 1
-#define ESP32_C3 0
-#define ESP32    0
 
 #if defined(ESP32) && (ESP32 == 1)
   #define SS 4
@@ -48,10 +44,14 @@ typedef struct __attribute__((packed)) {
 
 void initBmeLora(); 
 
-void setLoraPacket(lora_data_packet_t* data);
+#if defined(ESP32_S3) && (ESP32_S3 == 0)
+bool setLoraPacket(lora_data_packet_t* data);
+#endif
 
 bool getLoraPacket(lora_data_packet_t* data);
 
+#if defined(ESP32_S3) && (ESP32_S3 == 0)
 void setAndSendLoraPacket();
+#endif
 
 #endif

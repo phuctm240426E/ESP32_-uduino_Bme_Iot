@@ -21,22 +21,31 @@ void initBmeLora() {
    // Change sync word (0xF3) to match the receiver
   // The sync word assures you don't get LoRa messages from other LoRa transceivers
   // ranges from 0-0xFF
+#if defined(ESP32_S3) && (ESP32_S3 == 0)
+  LoRa.setTxPower(20);   // SX1278: max ~17 dBm
+#endif
   LoRa.setSpreadingFactor(9);
   LoRa.setSignalBandwidth(250E3);
   LoRa.setCodingRate4(6);
-  LoRa.enableCrc();                                                                                                                                                                                                                 
+  LoRa.enableCrc();
+  //LoRa.explicitHeaderMode();
+
   LoRa.setSyncWord(0x2A);
-  LoRa.setGain(0);          // AGC ON
+  LoRa.setGain(0); 
   DEBUG("LoRa Initializing OK!");
 }
 
-void setLoraPacket(lora_data_packet_t* data) {
-  data->deviceId = 1;
-  data->spO2 = getSpO2();
-  data->heartRate = getHeartRate();
+#if defined(ESP32_S3) && (ESP32_S3 == 0)
+bool setLoraPacket(lora_data_packet_t* data) {
+  data->deviceId = DEVICE_ID;
+  bool hasData = getSpO2AndHeartRate(&(data->spO2), &(data->heartRate));
+  //data->spO2 = getSpO2();
+  //data->heartRate = getHeartRate();
   data->bloodPressure = getBloodPressure();
   data->CRC = 6;
+  return hasData;
 }
+#endif
 
 bool getLoraPacket(lora_data_packet_t* data) {
   uint8_t buffer[50];
@@ -57,14 +66,17 @@ bool getLoraPacket(lora_data_packet_t* data) {
   return 0;
 }
 
+#if defined(ESP32_S3) && (ESP32_S3 == 0)
 void setAndSendLoraPacket() {
   lora_data_packet_t data;
   char dataSend[LORA_DATA_PACKET_SIZE];
   
-  setLoraPacket(&data);
-  memcpy(dataSend, &data, LORA_DATA_PACKET_SIZE);
-  
-  LoRa.beginPacket();
-  LoRa.print(dataSend);
-  LoRa.endPacket();
+  if(setLoraPacket(&data)) {
+    memcpy(dataSend, &data, LORA_DATA_PACKET_SIZE);
+    
+    LoRa.beginPacket();
+    LoRa.print(dataSend);
+    LoRa.endPacket();
+  }
 }
+#endif
