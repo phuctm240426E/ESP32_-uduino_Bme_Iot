@@ -5,15 +5,23 @@
 #include <LoRa.h>
 #include "Sensor.h"
 #include <cstdint>
+#include "BmeLcd.h"
 
 //define the pins used by the transceiver module
 #define ESP32_S3 1
 
-#if defined(ESP32_S3) && (ESP32_S3 == 0)
+#if defined(ESP32_S3) && (ESP32_S3 == 2)
   #define SS 4
   #define RST 5
   #define DIO0 2
-#else
+#elseif defined(ESP32_S3) && (ESP32_S3 == 1)
+  #define L_SCK 4
+  #define L_MISO 5
+  #define L_MOSI 3
+  #define SS 2
+  #define RST 1
+  #define DIO0 0
+#else // 0
   #define L_SCK   5
   #define L_MISO  6
   #define L_MOSI  7

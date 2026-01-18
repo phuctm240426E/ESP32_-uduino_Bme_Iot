@@ -2,6 +2,7 @@
 
 #include "Sensor.h"
 #include "BmeLora.h"
+#include "BmeLcd.h"
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 99
@@ -98,6 +99,8 @@ constexpr std::array<const char *, 1U> CLIENT_ATTRIBUTES_LIST = {
   LED_MODE_ATTR
 };
 
+extern Adafruit_SSD1306 display;
+
 /// @brief Initalizes WiFi connection,
 // will endlessly delay until a connection has been successfully established
 void InitWiFi() {
@@ -110,6 +113,8 @@ void InitWiFi() {
     Serial.print(".");
   }
   DEBUG("Connected to AP");
+  display.println("WiFi: Connected");
+  display.display();
 }
 
 /// @brief Reconnects the WiFi uses InitWiFi if the connection has been removed
@@ -212,9 +217,7 @@ const Attribute_Request_Callback<MAX_ATTRIBUTES> attribute_client_request_callba
 void setup() {
   // Initialize serial connection for debugging
   Serial.begin(SERIAL_DEBUG_BAUD);
-  if (LED_BUILTIN != 99) {
-    pinMode(LED_BUILTIN, OUTPUT);
-  }
+  initOLED();
   delay(1000);
   InitWiFi();
   initBmeLora(); 
@@ -310,24 +313,50 @@ void loop() {
   lora_data_packet_t lora_data;
   bool hasData = getLoraPacket(&lora_data);
   if(hasData) {
+    int rssi = LoRa.packetRssi();
+    display.clearDisplay();
+    // Vung mau vang
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.print("RSSI: "); display.print(rssi); display.println(" dBm");
+    display.drawFastHLine(0, 12, 128, WHITE);
+    
+
     String key;
     //lora_data_packet_t lora_data;
     //memcpy(&lora_data, data, LORA_DATA_PACKET_SIZE);
     Serial.println("Receive packet: ");
     Serial.println(lora_data.deviceId);
+
+    display.setCursor(0, 15);
+    display.setTextSize(1); display.print("HEALTH DATA:"); display.print(lora_data.deviceId); display.println("");
+
     Serial.println(lora_data.spO2);
     key = "SpO2_" + String(lora_data.deviceId);
     tb.sendTelemetryData(key.c_str(), lora_data.spO2);
+    display.setCursor(0, 25);
+    display.print("SpO2:"); display.print(lora_data.spO2);
+
     Serial.println(lora_data.heartRate);
     key = "HeartRate_" + String(lora_data.deviceId);
     tb.sendTelemetryData(key.c_str(), lora_data.heartRate);
+    display.setCursor(0, 35);
+    display.print("HR:"); display.print(lora_data.heartRate);
+
     Serial.println(lora_data.bloodPressure.systolic);
     key = "Systolic_" + String(lora_data.deviceId);
     tb.sendTelemetryData(key.c_str(), lora_data.bloodPressure.systolic);
+    display.setCursor(0, 45);
+    display.print("systolic:"); display.print(lora_data.bloodPressure.systolic);
+
     Serial.println(lora_data.bloodPressure.diastolic);
     key = "Diastolic_" + String(lora_data.deviceId);
     tb.sendTelemetryData(key.c_str(), lora_data.bloodPressure.diastolic);
+    display.setCursor(0, 55);
+    display.print("diastolic:"); display.print(lora_data.bloodPressure.diastolic);
+
     Serial.println(lora_data.CRC);
+    display.display();
   }
   
   tb.loop();

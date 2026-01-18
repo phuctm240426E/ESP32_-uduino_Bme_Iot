@@ -1,6 +1,8 @@
 #include "BmeLora.h"
 #include "Debug.h"
 
+extern Adafruit_SSD1306 display;
+
 void initBmeLora() {
   DEBUG("LoRa Receiver");
 
@@ -18,6 +20,8 @@ void initBmeLora() {
     DEBUG(".");
     delay(500);
   }
+  display.println("LoRa: Ready");
+  display.display();
    // Change sync word (0xF3) to match the receiver
   // The sync word assures you don't get LoRa messages from other LoRa transceivers
   // ranges from 0-0xFF
