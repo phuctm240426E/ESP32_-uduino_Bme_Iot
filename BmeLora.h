@@ -7,9 +7,20 @@
 #include <cstdint>
 
 //define the pins used by the transceiver module
-#define SS 4
-#define RST 5
-#define DIO0 2
+#define ESP32_S3 1
+
+#if defined(ESP32_S3) && (ESP32_S3 == 0)
+  #define SS 4
+  #define RST 5
+  #define DIO0 2
+#else
+  #define L_SCK   5
+  #define L_MISO  6
+  #define L_MOSI  7
+  #define SS   15
+  #define RST   16
+  #define DIO0  17 
+#endif
 
 #define LORA_DATA_PACKET_SIZE 6
 

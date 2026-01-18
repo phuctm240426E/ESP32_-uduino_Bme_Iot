@@ -4,6 +4,10 @@
 void initBmeLora() {
   DEBUG("LoRa Receiver");
 
+#if defined(ESP32_S3) && (ESP32_S3 == 1)
+  SPI.begin(L_SCK, L_MISO, L_MOSI, SS);
+#endif
+
   LoRa.setPins(SS, RST, DIO0);
   
   //replace the LoRa.begin(---E-) argument with your location's frequency 
