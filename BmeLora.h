@@ -32,26 +32,24 @@
   #define DIO0  17 
 #endif
 
-#define LORA_DATA_PACKET_SIZE 6
+#define LORA_DATA_PACKET_SIZE 4
 
 typedef struct __attribute__((packed)) {
     uint8_t deviceId;   
     uint8_t spO2;  
-    uint8_t  heartRate;       
-    blood_pressure_t  bloodPressure; 
-    uint8_t  CRC;
+    uint16_t  heartRate;       
 } lora_data_packet_t;
 
 void initBmeLora(); 
 
-#if defined(ESP32_S3) && (ESP32_S3 == 0)
+#if defined(LORA_NODE) && (LORA_NODE == 1)
 bool setLoraPacket(lora_data_packet_t* data);
-#endif
+#endif        // LORA_NODE == 1
 
 bool getLoraPacket(lora_data_packet_t* data);
 
-#if defined(ESP32_S3) && (ESP32_S3 == 0)
+#if defined(LORA_NODE) && (LORA_NODE == 1)
 void setAndSendLoraPacket();
-#endif
+#endif        // LORA_NODE == 1
 
 #endif

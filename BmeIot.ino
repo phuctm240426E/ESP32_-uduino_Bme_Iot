@@ -1,186 +1,344 @@
 #include <WiFi.h>
-
-#include "Sensor.h"
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
 #include "BmeLora.h"
-#include "BmeLcd.h"
 
-#ifndef LED_BUILTIN
-#define LED_BUILTIN 99
-#endif
 
-#include "Debug.h"
+// WiFi
+const char* WIFI_SSID     = "DoanDong";
+const char* WIFI_PASSWORD = "dong1958";
 
-#include <Arduino_MQTT_Client.h>
-#include <Server_Side_RPC.h>
-#include <Attribute_Request.h>
-#include <Shared_Attribute_Update.h>
-#include <ThingsBoard.h>
+// ThingsBoard
+const char* THINGSBOARD_HOST = "thingsboard.cloud";
+const char* ACCESS_TOKEN    = "ef2ZhoEBy8MISx0OqMWJ";
 
-constexpr char WIFI_SSID[] = "DoanDong";
-constexpr char WIFI_PASSWORD[] = "dong1958";
+// Topics
+const char* TELEMETRY_TOPIC = "v1/devices/me/telemetry";
+const char* RPC_SUB_TOPIC   = "v1/devices/me/rpc/request/+";
 
-constexpr char TOKEN[] = "I5hqfWK0FXG0373PC5s1";
+// Timing
+const unsigned long SEND_INTERVAL = 5000;
 
-constexpr char THINGSBOARD_SERVER[] = "demo.thingsboard.io";
+QueueHandle_t loraQueue;
+QueueHandle_t alarmQueue;
 
-constexpr uint16_t THINGSBOARD_PORT = 1883U;
+WiFiClient espClient;
+PubSubClient client(espClient);
 
-constexpr uint32_t MAX_MESSAGE_SIZE = 1024U;
+unsigned long lastSend = 0;
 
-constexpr uint32_t SERIAL_DEBUG_BAUD = 115200U;
 
-constexpr size_t MAX_ATTRIBUTES = 3U;
-
-//constexpr uint64_t REQUEST_TIMEOUT_MICROSECONDS = 5000U * 1000U;
-
-WiFiClient wifiClient;
-
-// Initalize the Mqtt client instance
-Arduino_MQTT_Client mqttClient(wifiClient);
-
-// Initialize used apis
-Server_Side_RPC<3U, 5U> rpc;
-Attribute_Request<2U, MAX_ATTRIBUTES> attr_request;
-Shared_Attribute_Update<3U, MAX_ATTRIBUTES> shared_update;
-
-const std::array<IAPI_Implementation*, 3U> apis = {
-    &rpc,
-    &attr_request,
-    &shared_update
-};
-
-// Initialize ThingsBoard instance with the maximum needed buffer size, stack size and the apis we want to use
-ThingsBoard tb(mqttClient, MAX_MESSAGE_SIZE, Default_Max_Stack_Size, apis);
-
-void InitWiFi() {
-  DEBUG("Connecting to AP ...");
-  // Attempting to establish a connection to the given WiFi network
+void setupWiFi() {
+  Serial.print("Connecting to WiFi");
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
   while (WiFi.status() != WL_CONNECTED) {
-    // Delay 500ms until a connection has been succesfully established
     delay(500);
     Serial.print(".");
   }
-  DEBUG("Connected to AP");
-  display.println("WiFi: Connected");
-  display.display();
+  Serial.println("\nWiFi connected");
 }
 
-const bool reconnect() {
-  
-  const wl_status_t status = WiFi.status();
-  if (status == WL_CONNECTED) {
-    return true;
-  }
 
-  InitWiFi();
-  return true;
-}
-
-void onRpcCall(const JsonVariantConst &data, JsonDocument &response) {
-  // Method name
-  const char* method = data["method"];
-  Serial.println(method);
-  if (strcmp(method, "alarm") == 0) {
-    bool active = data["params"]["active"];
-
-    if (active) {
-      Serial.println(" ALARM ON (HeartRate_2 > 80)");
-      //digitalWrite(LED_PIN, HIGH);
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Connecting to ThingsBoard...");
+    if (client.connect("ESP32_HEALTH_DEVICE", ACCESS_TOKEN, NULL)) {
+      Serial.println("connected");
+      client.subscribe(RPC_SUB_TOPIC);
     } else {
-      Serial.println("ALARM OFF");
-      //digitalWrite(LED_PIN, LOW);
+      Serial.print("failed, rc=");
+      Serial.println(client.state());
+      delay(3000);
     }
   }
-
-  // Optional response
-  response["status"] = "ok";
 }
 
-const std::array<RPC_Callback, 1U> callbacks = {
-  RPC_Callback{ "High_heart_rate", onRpcCall }
-};
 
-void setup() {
-  Serial.begin(SERIAL_DEBUG_BAUD);
-  initOLED();
-  delay(1000);
-  InitWiFi();
-  initBmeLora(); 
-}
+void rpcCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.println("\n=== RPC RECEIVED ===");
 
-void loop() {
-  delay(10);
+  String message;
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.println(message);
 
-  if (!reconnect()) {
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, message);
+
+  if (error) {
+    Serial.println("JSON parse failed");
     return;
   }
 
-  if (!tb.connected()) {
-    // Connect to the ThingsBoard
-    Serial.print("Connecting to: ");
-    Serial.print(THINGSBOARD_SERVER);
-    Serial.print(" with token ");
-    DEBUG(TOKEN);
-    if (!tb.connect(THINGSBOARD_SERVER, TOKEN, THINGSBOARD_PORT)) {
-      DEBUG("Failed to connect");
-      return;
+  const char* method = doc["method"];
+  JsonObject params = doc["params"];
+
+  if (strcmp(method, "healthAlert") == 0) {
+    int id          = params["id"];
+    float heartRate = params["heartRate"];
+    float spo2      = params["spo2"];
+
+    Serial.printf("ALERT for ID %d\n", id);
+    Serial.printf("HeartRate: %.1f\n", heartRate);
+    Serial.printf("SpO2: %.1f\n", spo2);
+
+    JsonArray alerts = params["alerts"];
+    for (JsonVariant a : alerts) {
+      Serial.print("Condition: ");
+      Serial.println(a.as<const char*>());
     }
 
-    DEBUG("Subscribing for RPC...");
-
-    if (!rpc.RPC_Subscribe(callbacks.cbegin(), callbacks.cend())) {
-      DEBUG("Failed to subscribe for RPC");
-      return;
-    }
+    // 🔴 HERE is where you can add:
+    // - buzzer
+    // - LED
+    // - relay
+    // - display update
   }
-  
-  lora_data_packet_t lora_data;
-  bool hasData = getLoraPacket(&lora_data);
-  if(hasData) {
-    int rssi = LoRa.packetRssi();
-    display.clearDisplay();
-    // Vung mau vang
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-    display.print("RSSI: "); display.print(rssi); display.println(" dBm");
-    display.drawFastHLine(0, 12, 128, WHITE);
+
+  // ---------- RPC Response ----------
+  String topicStr = String(topic);
+  String requestId = topicStr.substring(
+    String("v1/devices/me/rpc/request/").length()
+  );
+
+  String responseTopic = "v1/devices/me/rpc/response/" + requestId;
+  client.publish(responseTopic.c_str(), "{\"result\":\"OK\"}");
+}
+
+
+void sendTelemetry() {
+  // Simulated sensor values
+  lora_data_packet_t loraData;
+  if(getLoraPacket(&loraData)) {
+
     
 
-    String key;
-    Serial.println("Receive packet: ");
-    Serial.println(lora_data.deviceId);
+    StaticJsonDocument<128> doc;
 
-    display.setCursor(0, 15);
-    display.setTextSize(1); display.print("HEALTH DATA:"); display.print(lora_data.deviceId); display.println("");
+    char key[24];
 
-    Serial.println(lora_data.spO2);
-    key = "SpO2_" + String(lora_data.deviceId);
-    tb.sendTelemetryData(key.c_str(), lora_data.spO2);
-    display.setCursor(0, 25);
-    display.print("SpO2:"); display.print(lora_data.spO2);
+    snprintf(key, sizeof(key), "HeartRate_%u", loraData.deviceId);
+    doc[key] = loraData.heartRate;
 
-    Serial.println(lora_data.heartRate);
-    key = "HeartRate_" + String(lora_data.deviceId);
-    tb.sendTelemetryData(key.c_str(), lora_data.heartRate);
-    display.setCursor(0, 35);
-    display.print("HR:"); display.print(lora_data.heartRate);
+    snprintf(key, sizeof(key), "SpO2_%u", loraData.deviceId);
+    doc[key] = loraData.spO2;
 
-    Serial.println(lora_data.bloodPressure.systolic);
-    key = "Systolic_" + String(lora_data.deviceId);
-    tb.sendTelemetryData(key.c_str(), lora_data.bloodPressure.systolic);
-    display.setCursor(0, 45);
-    display.print("systolic:"); display.print(lora_data.bloodPressure.systolic);
+    char payload[128];
+    serializeJson(doc, payload);
 
-    Serial.println(lora_data.bloodPressure.diastolic);
-    key = "Diastolic_" + String(lora_data.deviceId);
-    tb.sendTelemetryData(key.c_str(), lora_data.bloodPressure.diastolic);
-    display.setCursor(0, 55);
-    display.print("diastolic:"); display.print(lora_data.bloodPressure.diastolic);
+    Serial.print("Sending telemetry: ");
+    Serial.println(payload);
 
-    Serial.println(lora_data.CRC);
-    display.display();
+    client.publish(TELEMETRY_TOPIC, payload);
   }
-  
-  tb.loop();
 }
+
+void mqttAndSendTelemetryTask(void* pvParameters) {
+
+}
+
+void loraAndAlarmTask(void* pvParameters) {
+
+}
+
+void setup() {
+  Serial.begin(115200);
+  randomSeed(analogRead(0));
+
+  setupWiFi();
+  client.setServer(THINGSBOARD_HOST, 1883);
+  client.setCallback(rpcCallback);
+
+  loraQueue = xQueueCreate(10, sizeof(lora_data_packet_t));
+  alarmQueue = xQueueCreate(5, sizeof(lora_data_packet_t));
+
+  xTaskCreatePinnedToCore(
+  mqttAndSendTelemetryTask,
+  "MQTT",
+  4096,
+  NULL,
+  2,
+  NULL,
+  0
+  );
+
+  xTaskCreatePinnedToCore(
+  loraAndAlarmTask,
+  "LoRa+Alarm",
+  4096,
+  NULL,
+  3,
+  NULL,
+  1
+  );
+}
+
+
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  if (millis() - lastSend > SEND_INTERVAL) {
+    lastSend = millis();
+    sendTelemetry();
+  }
+}
+
+/*
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include "BmeLora.h"
+
+#define WIFI_SSID     "DoanDong"
+#define WIFI_PASSWORD "dong1958"
+
+#define THINGSBOARD_HOST "thingsboard.cloud"
+#define ACCESS_TOKEN    "ef2ZhoEBy8MISx0OqMWJ"
+
+#define TELEMETRY_TOPIC "v1/devices/me/telemetry"
+#define RPC_SUB_TOPIC   "v1/devices/me/rpc/request/+"
+
+QueueHandle_t loraQueue;
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void wifiTask(void *pvParameters) {
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  while (true) {
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi reconnecting...");
+      WiFi.disconnect();
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    }
+    vTaskDelay(pdMS_TO_TICKS(5000));
+  }
+}
+
+void mqttTask(void *pvParameters) {
+  client.setServer(THINGSBOARD_HOST, 1883);
+  client.setCallback(rpcCallback);
+
+  while (true) {
+    if (!client.connected()) {
+      while (!client.connected()) {
+        if (client.connect("ESP32_GATEWAY", ACCESS_TOKEN, NULL)) {
+          client.subscribe(RPC_SUB_TOPIC);
+        } else {
+          vTaskDelay(pdMS_TO_TICKS(3000));
+        }
+      }
+    }
+    client.loop();
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
+void loraTask(void *pvParameters) {
+  lora_data_packet_t packet;
+
+  while (true) {
+    if (getLoraPacket(&packet)) {
+      xQueueSend(loraQueue, &packet, portMAX_DELAY);
+    }
+    vTaskDelay(pdMS_TO_TICKS(5));
+  }
+}
+
+
+void telemetryTask(void *pvParameters) {
+  lora_data_packet_t packet;
+
+  while (true) {
+    if (xQueueReceive(loraQueue, &packet, portMAX_DELAY)) {
+
+      StaticJsonDocument<128> doc;
+      char key[24];
+
+      snprintf(key, sizeof(key), "HeartRate_%u", packet.deviceId);
+      doc[key] = packet.heartRate;
+
+      snprintf(key, sizeof(key), "SpO2_%u", packet.deviceId);
+      doc[key] = packet.spO2;
+
+      char payload[128];
+      serializeJson(doc, payload);
+
+      Serial.println(payload);
+      client.publish(TELEMETRY_TOPIC, payload);
+    }
+  }
+}
+
+void rpcCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.println("\n=== RPC RECEIVED ===");
+
+  String message;
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.println(message);
+
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, message);
+
+  if (error) {
+    Serial.println("JSON parse failed");
+    return;
+  }
+
+  const char* method = doc["method"];
+  JsonObject params = doc["params"];
+
+  if (strcmp(method, "healthAlert") == 0) {
+    int id          = params["id"];
+    float heartRate = params["heartRate"];
+    float spo2      = params["spo2"];
+
+    Serial.printf("ALERT for ID %d\n", id);
+    Serial.printf("HeartRate: %.1f\n", heartRate);
+    Serial.printf("SpO2: %.1f\n", spo2);
+
+    JsonArray alerts = params["alerts"];
+    for (JsonVariant a : alerts) {
+      Serial.print("Condition: ");
+      Serial.println(a.as<const char*>());
+    }
+
+    // 🔴 HERE is where you can add:
+    // - buzzer
+    // - LED
+    // - relay
+    // - display update
+  }
+
+  // ---------- RPC Response ----------
+  String topicStr = String(topic);
+  String requestId = topicStr.substring(
+    String("v1/devices/me/rpc/request/").length()
+  );
+
+  String responseTopic = "v1/devices/me/rpc/response/" + requestId;
+  client.publish(responseTopic.c_str(), "{\"result\":\"OK\"}");
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  loraQueue = xQueueCreate(10, sizeof(lora_data_packet_t));
+
+  xTaskCreatePinnedToCore(wifiTask, "WiFi", 4096, NULL, 1, NULL, 0);
+  //xTaskCreatePinnedToCore(mqttTask, "MQTT", 4096, NULL, 2, NULL, 0);
+  //xTaskCreatePinnedToCore(loraTask, "LoRa", 4096, NULL, 3, NULL, 1);
+  //xTaskCreatePinnedToCore(telemetryTask, "Telemetry", 4096, NULL, 2, NULL, 0);
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // RTOS owns everything
+}*/

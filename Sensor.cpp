@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include "BmeLcd.h"
 
-#if defined(ESP32) && (ESP32 == 0)
+#if defined(LORA_NODE) && (LORA_NODE == 1)        // LORA_NODE == 1
 MAX30105 particleSensor;
 
 uint32_t irBuffer[100]; 
@@ -14,30 +14,20 @@ int8_t  validSpO2, validHR;
 int dispBPM = 0;
 int dispSpO2 = 0;
 bool tick = false;
-#endif
 
 void initSensor() {
-#if defined(ESP32) && (ESP32 == 0)
   if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) while (1);
   particleSensor.setup(60, 1, 2, 100, 411, 4096); // 100Hz
-#endif
 }
 
-blood_pressure_t getBloodPressure() {
-  blood_pressure_t data;
-  data.diastolic = random(10, 200);
-  data.systolic = random(10, 100);
-  return data;
-}
-
-bool getSpO2AndHeartRate(uint8_t* spO2, uint8_t* hr) {
-#if defined(ESP32) && (ESP32 == 1)
+bool getSpO2AndHeartRate(uint8_t* spO2, uint16_t* hr) {
+#if defined(TEST_MODE) && (TEST_MODE == 1)
   *spO2 = random(10, 100);
   *hr = random(10, 200);
   return true;
-#endif
+#endif        // TEST_MODE == 1
 
-#if defined(ESP32_C3) && (ESP32_C3 == 1)
+#if defined(TEST_MODE) && (TEST_MODE == 0)
   long irValue = particleSensor.getIR();
 
   if (irValue < 45000) {
@@ -107,9 +97,10 @@ bool getSpO2AndHeartRate(uint8_t* spO2, uint8_t* hr) {
     //LoRa.print(payload);
     //LoRa.endPacket();
     *spO2 = (uint8_t)dispSpO2;
-    *hr = (uint8_t)dispBPM;
+    *hr = (uint16_t)dispBPM;
     return true;
   }
   return false;
-#endif
+#endif        // TEST_MODE == 0
 }
+#endif        // LORA_NODE == 1
