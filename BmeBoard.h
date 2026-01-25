@@ -1,7 +1,7 @@
 #ifndef __BME_BOARD_H__
 #define __BME_BOARD_H__
 
-#define TEST_MODE 1
+#define TEST_MODE 0
 
 #define ESP32_S3 1
 #define ESP32_C3 0

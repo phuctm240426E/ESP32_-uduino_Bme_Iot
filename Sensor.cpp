@@ -33,7 +33,7 @@ bool getSpO2AndHeartRate(uint8_t* spO2, uint16_t* hr) {
   if (irValue < 45000) {
     display.clearDisplay();
     display.setTextSize(1);
-    display.setCursor(0, 0); display.print("TRANG THAI: SAN SANG "); display.print(DEVICE_ID);
+    display.setCursor(0, 0); display.print("DEVICE "); display.print(DEVICE_ID); display.print(" IS READY");
     display.setCursor(0, 35); display.print("Hay dat ngon tay vao..."); // Chữ nhỏ cỡ 1
     display.display();
     dispBPM = 0; dispSpO2 = 0;

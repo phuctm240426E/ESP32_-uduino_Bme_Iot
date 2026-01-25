@@ -32,15 +32,29 @@
   #define DIO0  17 
 #endif
 
-#define LORA_DATA_PACKET_SIZE 4
+#define MAX_LBT_RETRY      5
+#define MAX_TX_RETRY      3
+#define BACKOFF_MIN_MS    500
+#define BACKOFF_MAX_MS    3000
+#define ACK_TIMEOUT_MS   1500
+
+#define LORA_DATA_PACKET_SIZE 6
 
 typedef struct __attribute__((packed)) {
     uint8_t deviceId;   
     uint8_t spO2;  
-    uint16_t  heartRate;       
+    uint16_t  heartRate;  
+    uint16_t crc;     
 } lora_data_packet_t;
 
+typedef struct __attribute__((packed)) {
+    uint8_t deviceId;   
+    uint8_t isActive;  
+} alarm_t;
+
 void initBmeLora(); 
+
+uint16_t calculateCRC(const uint8_t *data, uint16_t len);
 
 #if defined(LORA_NODE) && (LORA_NODE == 1)
 bool setLoraPacket(lora_data_packet_t* data);
